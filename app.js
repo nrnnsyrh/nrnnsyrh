@@ -1,4 +1,5 @@
-import * as THREE from './libs/three/three.module.js';More actions
+
+import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
 import { RGBELoader } from './libs/three/jsm/RGBELoader.js';
@@ -359,5 +360,4 @@ class App{
 	}
 }
 
-export { App };  
-
+export { App };
