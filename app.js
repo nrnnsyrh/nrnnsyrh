@@ -27,6 +27,7 @@ class App{
         this.camera.add( this.dummyCam );
         
 		this.scene = new THREE.Scene();
+		this.scene.background = new THREE.Color(0x87ceeb); // Light blue sky color
         this.scene.add( this.dolly );
         
 		const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
@@ -64,6 +65,9 @@ class App{
             .then(obj =>{
                 self.boardShown = '';
                 self.boardData = obj;
+		    document.addEventListener('click', () => {
+    const randomColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+    this.scene.background = randomColor;
             });
 	}
 	
