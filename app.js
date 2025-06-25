@@ -152,9 +152,48 @@ class App{
 
 			}
 		);
+		// === STEP 1: Add clickable object ===
+	const infoCube = new THREE.Mesh(
+   	new THREE.BoxGeometry(0.5, 0.5, 0.5),
+    	new THREE.MeshStandardMaterial({ color: 0x00aaff })
+	);
+	infoCube.name = "InfoCube";
+	infoCube.position.set(2, 1.5, -2);  // adjust position as needed
+	self.scene.add(infoCube);
+
+	// === STEP 2: Add info panel content ===
+	self.customInfoPanelData = {
+  	  name: "Welcome!",
+    	info: "This cube shows more info when clicked."
+	};
+
 	}
     
     setupXR(){
+ 	this.renderer.setAnimationLoop( this.render.bind(this) );
+	    // === STEP 3: Set up cube click logic ===
+const self = this;
+this.tempVec = new THREE.Vector3();
+
+this.renderer.domElement.addEventListener('click', function () {
+    // convert 2D click to 3D
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    self.raycaster.setFromCamera(mouse, self.camera);
+    const intersects = self.raycaster.intersectObjects(self.scene.children, true);
+    
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.name === "InfoCube") {
+            const pos = intersects[i].object.getWorldPosition(self.tempVec);
+            self.showInfoboard("InfoCube", self.customInfoPanelData, pos);
+            break;
+        }
+    }
+});
+
+
         this.renderer.xr.enabled = true;
 
         const btn = new VRButton( this.renderer );
