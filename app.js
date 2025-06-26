@@ -1,3 +1,4 @@
+
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
@@ -10,74 +11,82 @@ import { GazeController } from './libs/GazeController.js'
 import { XRControllerModelFactory } from './libs/three/jsm/XRControllerModelFactory.js';
 
 class App{
-  constructor(){
-    const container = document.createElement('div');
-    document.body.appendChild(container);
+	constructor(){
+		const container = document.createElement( 'div' );
+		document.body.appendChild( container );
 
-    this.assetsPath = './assets/';
+		this.assetsPath = './assets/';
+        
+		this.camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 0.01, 500 );
+		this.camera.position.set( 0, 1.6, 0 );
+        
+        this.dolly = new THREE.Object3D(  );
+        this.dolly.position.set(0, 0, 10);
+        this.dolly.add( this.camera );
+        this.dummyCam = new THREE.Object3D();
+        this.camera.add( this.dummyCam );
+        
+		this.scene = new THREE.Scene();
+        this.scene.add( this.dolly );
+		const geometry = new THREE.BoxGeometry(1, 1, 1);
+const material = new THREE.MeshStandardMaterial({ color: 0x4CC3D9 });
+const interactiveBox = new THREE.Mesh(geometry, material);
+interactiveBox.position.set(0, 5, 10); // X, Y, Z
+interactiveBox.name = "InteractiveBox";
+this.scene.add(interactiveBox);
 
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 500);
-    this.camera.position.set(0, 1.6, 0);
-
-    const listener = new THREE.AudioListener();
-    this.camera.add(listener); // Needed for 3D sound
-
-    this.dolly = new THREE.Object3D();
-    this.dolly.position.set(0, 0, 10);
-    this.dolly.add(this.camera);
-    this.dummyCam = new THREE.Object3D();
-    this.camera.add(this.dummyCam);
-
-    this.scene = new THREE.Scene();
-    this.scene.add(this.dolly);
-
-    // 1. Create clickable box
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ color: 0x4CC3D9 });
-    const interactiveBox = new THREE.Mesh(geometry, material);
-    interactiveBox.position.set(0, 5, 10);
-    interactiveBox.name = "InteractiveBox";
-    this.scene.add(interactiveBox);
-
-   // 2. Play background music (non-positional, global sound)
-const bgSound = new THREE.Audio(listener);
-const audioLoader = new THREE.AudioLoader();
-
-audioLoader.load('./assets/ambient.mp3', (buffer) => {
-    console.log("Background audio loaded");
-    bgSound.setBuffer(buffer);
-    bgSound.setLoop(true);
-    bgSound.setVolume(3); // You can adjust volume
-    this.scene.add(bgSound);
-
-    // Required: user interaction to start audio (browser policy)
-    const startAudio = () => {
-        if (!bgSound.isPlaying) {
-            bgSound.play();
-            console.log("Background music started");
-        }
-        window.removeEventListener('click', startAudio);
-    };
-
-    window.addEventListener('click', startAudio);
-}, undefined, (err) => {
-    console.error("Failed to load background audio", err);
+// Box click interaction
+(raycasting)window.addEventListener('click', (event) => {
+    const mouse = new THREE.Vector2(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+    );
+    this.raycaster.setFromCamera(mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects([interactiveBox]);
+    if (intersects.length > 0) {
+        const newColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
+        interactiveBox.material.color.set(newColor);
+    }
 });
-    // Box click interaction (raycasting)
-    window.addEventListener('click', (event) => {
-        const mouse = new THREE.Vector2(
-            (event.clientX / window.innerWidth) * 2 - 1,
-            -(event.clientY / window.innerHeight) * 2 + 1
-        );
-        this.raycaster.setFromCamera(mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects([interactiveBox]);
-        if (intersects.length > 0) {
-            const newColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
-            interactiveBox.material.color.set(newColor);
-        }
-    });
-}
-  
+        
+		const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
+		this.scene.add(ambient);
+
+		this.renderer = new THREE.WebGLRenderer({ antialias: true });
+		this.renderer.setPixelRatio( window.devicePixelRatio );
+		this.renderer.setSize( window.innerWidth, window.innerHeight );
+		this.renderer.outputEncoding = THREE.sRGBEncoding;
+		container.appendChild( this.renderer.domElement );
+        this.setEnvironment();
+	
+        window.addEventListener( 'resize', this.resize.bind(this) );
+        
+        this.clock = new THREE.Clock();
+        this.up = new THREE.Vector3(0,1,0);
+        this.origin = new THREE.Vector3();
+        this.workingVec3 = new THREE.Vector3();
+        this.workingQuaternion = new THREE.Quaternion();
+        this.raycaster = new THREE.Raycaster();
+        
+        this.stats = new Stats();
+		container.appendChild( this.stats.dom );
+        
+		this.loadingBar = new LoadingBar();
+		
+		this.loadCollege();
+        
+        this.immersive = false;
+        
+        const self = this;
+        
+        fetch('./college.json')
+            .then(response => response.json())
+            .then(obj =>{
+                self.boardShown = '';
+                self.boardData = obj;
+            });
+	}
+	
     setEnvironment(){
         const loader = new RGBELoader().setDataType( THREE.UnsignedByteType );
         const pmremGenerator = new THREE.PMREMGenerator( this.renderer );
@@ -90,7 +99,8 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
           pmremGenerator.dispose();
 
           self.scene.environment = envMap;
-		}, undefined, (err)=>{
+
+        }, undefined, (err)=>{
             console.error( 'An error occurred setting the environment');
         } );
     }
@@ -101,31 +111,31 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
         this.renderer.setSize( window.innerWidth, window.innerHeight );  
     }
     
-  loadCollege(){
+	loadCollege(){
         
-    const loader = new GLTFLoader( ).setPath(this.assetsPath);
+		const loader = new GLTFLoader( ).setPath(this.assetsPath);
         const dracoLoader = new DRACOLoader();
         dracoLoader.setDecoderPath( './libs/three/js/draco/' );
         loader.setDRACOLoader( dracoLoader );
         
         const self = this;
-    
-    // Load a glTF resource
-    loader.load(
-      // resource URL
-      'college.glb',
-      // called when the resource is loaded
-      function ( gltf ) {
+		
+		// Load a glTF resource
+		loader.load(
+			// resource URL
+			'college.glb',
+			// called when the resource is loaded
+			function ( gltf ) {
 
                 const college = gltf.scene.children[0];
-        self.scene.add( college );
-        
-        college.traverse(function (child) {
-            if (child.isMesh){
-            if (child.name.indexOf("PROXY")!=-1){
-              child.material.visible = false;
-              self.proxy = child;
-            }else if (child.material.name.indexOf('Glass')!=-1){
+				self.scene.add( college );
+				
+				college.traverse(function (child) {
+    				if (child.isMesh){
+						if (child.name.indexOf("PROXY")!=-1){
+							child.material.visible = false;
+							self.proxy = child;
+						}else if (child.material.name.indexOf('Glass')!=-1){
                             child.material.opacity = 0.1;
                             child.material.transparent = true;
                         }else if (child.material.name.indexOf("SkyBox")!=-1){
@@ -134,11 +144,11 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
                             child.material = mat2;
                             mat1.dispose();
                         }
-          }
-        });
+					}
+				});
                        
-                const door1 = college.getObjectByName("LobbyShop_Door_1");
-                const door2 = college.getObjectByName("LobbyShop_Door_2");
+                const door1 = college.getObjectByName("LobbyShop_Door__1_");
+                const door2 = college.getObjectByName("LobbyShop_Door__2_");
                 const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
                 const obj = new THREE.Object3D();
                 obj.name = "LobbyShop";
@@ -146,23 +156,23 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
                 college.add( obj );
                 
                 self.loadingBar.visible = false;
-      
+			
                 self.setupXR();
-      },
-      // called while loading is progressing
-      function ( xhr ) {
+			},
+			// called while loading is progressing
+			function ( xhr ) {
 
-        self.loadingBar.progress = (xhr.loaded / xhr.total);
-        
-      },
-      // called when loading has errors
-      function ( error ) {
+				self.loadingBar.progress = (xhr.loaded / xhr.total);
+				
+			},
+			// called when loading has errors
+			function ( error ) {
 
-        console.log( 'An error happened' );
+				console.log( 'An error happened' );
 
-      }
-    );
-  }
+			}
+		);
+	}
     
     setupXR(){
         this.renderer.xr.enabled = true;
@@ -178,7 +188,8 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
             this.userData.selectPressed = true;
         
         }
-	    function onSelectEnd( event ) {
+
+        function onSelectEnd( event ) {
         
             this.userData.selectPressed = false;
         
@@ -248,30 +259,30 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
         
         const wallLimit = 1.3;
         const speed = 2;
-    let pos = this.dolly.position.clone();
+		let pos = this.dolly.position.clone();
         pos.y += 1;
         
-    let dir = new THREE.Vector3();
+		let dir = new THREE.Vector3();
         //Store original dolly rotation
         const quaternion = this.dolly.quaternion.clone();
         //Get rotation for movement from the headset pose
         this.dolly.quaternion.copy( this.dummyCam.getWorldQuaternion(this.workingQuaternion) );
-    this.dolly.getWorldDirection(dir);
+		this.dolly.getWorldDirection(dir);
         dir.negate();
-    this.raycaster.set(pos, dir);
-    
+		this.raycaster.set(pos, dir);
+		
         let blocked = false;
-    
-    let intersect = this.raycaster.intersectObject(this.proxy);
+		
+		let intersect = this.raycaster.intersectObject(this.proxy);
         if (intersect.length>0){
             if (intersect[0].distance < wallLimit) blocked = true;
         }
-    
-    if (!blocked){
+		
+		if (!blocked){
             this.dolly.translateZ(-dt*speed);
             pos = this.dolly.getWorldPosition( this.origin );
-    }
-    
+		}
+		
         //cast left
         dir.set(-1,0,0);
         dir.applyMatrix4(this.dolly.matrix);
@@ -293,7 +304,8 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
         if (intersect.length>0){
             if (intersect[0].distance<wallLimit) this.dolly.translateX(intersect[0].distance-wallLimit);
         }
-	    //cast down
+
+        //cast down
         dir.set(0,-1,0);
         pos.y += 1.5;
         this.raycaster.set(pos, dir);
@@ -305,10 +317,10 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
 
         //Restore the original rotation
         this.dolly.quaternion.copy( quaternion );
-  }
-    
+	}
+		
     get selectPressed(){
-        return ( this.controllers !== undefined && (this.controllers[0].userData.selectPressed  this.controllers[1].userData.selectPressed) );    
+        return ( this.controllers !== undefined && (this.controllers[0].userData.selectPressed || this.controllers[1].userData.selectPressed) );    
     }
     
     showInfoboard( name, info, pos ){
@@ -323,7 +335,7 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
         this.boardShown = name;
     }
 
-  render( timestamp, frame ){
+	render( timestamp, frame ){
         const dt = this.clock.getDelta();
         
         if (this.renderer.xr.isPresenting){
@@ -334,7 +346,7 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
                 moveGaze = (this.gazeController.mode == GazeController.Modes.MOVE);
             }
         
-            if (this.selectPressed  moveGaze){
+            if (this.selectPressed || moveGaze){
                 this.moveDolly(dt);
                 if (this.boardData){
                     const scene = this.scene;
@@ -364,8 +376,8 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
         }
         
         this.stats.update();
-    this.renderer.render(this.scene, this.camera);
-  }
+		this.renderer.render(this.scene, this.camera);
+	}
 }
 
-export { App };
+export { App };
