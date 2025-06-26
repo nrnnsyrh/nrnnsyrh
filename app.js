@@ -28,27 +28,31 @@ class App{
         
 		this.scene = new THREE.Scene();
         this.scene.add( this.dolly );
-		const geometry = new THREE.BoxGeometry(1, 1, 1);
-const material = new THREE.MeshStandardMaterial({ color: 0x4CC3D9 });
-const interactiveBox = new THREE.Mesh(geometry, material);
-interactiveBox.position.set(0, 5, 10); // X, Y, Z
-interactiveBox.name = "InteractiveBox";
-this.scene.add(interactiveBox);
+		
+		// 2. Play background music (non-positional, global sound)
+const bgSound = new THREE.Audio(listener);
+const audioLoader = new THREE.AudioLoader();
 
-// Box click interaction
-(raycasting)window.addEventListener('click', (event) => {
-    const mouse = new THREE.Vector2(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-    );
-    this.raycaster.setFromCamera(mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects([interactiveBox]);
-    if (intersects.length > 0) {
-        const newColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
-        interactiveBox.material.color.set(newColor);
-    }
+audioLoader.load('./assets/ambient.mp3', (buffer) => {
+    console.log("Background audio loaded");
+    bgSound.setBuffer(buffer);
+    bgSound.setLoop(true);
+    bgSound.setVolume(3); // volume level
+    this.scene.add(bgSound);
+
+    const startAudio = () => {
+        if (!bgSound.isPlaying) {
+            bgSound.play();
+            console.log("Background music started");
+        }
+        window.removeEventListener('click', startAudio);
+    };
+
+    window.addEventListener('click', startAudio);
+}, undefined, (err) => {
+    console.error("Failed to load background audio", err);
 });
-        
+
 		const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
 		this.scene.add(ambient);
 
