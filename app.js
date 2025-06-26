@@ -28,30 +28,6 @@ class App{
         
 		this.scene = new THREE.Scene();
         this.scene.add( this.dolly );
-		
-		// 2. Play background music (non-positional, global sound)
-const bgSound = new THREE.Audio(listener);
-const audioLoader = new THREE.AudioLoader();
-
-audioLoader.load('./assets/ambient.mp3', (buffer) => {
-    console.log("Background audio loaded");
-    bgSound.setBuffer(buffer);
-    bgSound.setLoop(true);
-    bgSound.setVolume(3); // volume level
-    this.scene.add(bgSound);
-
-    const startAudio = () => {
-        if (!bgSound.isPlaying) {
-            bgSound.play();
-            console.log("Background music started");
-        }
-        window.removeEventListener('click', startAudio);
-    };
-
-    window.addEventListener('click', startAudio);
-}, undefined, (err) => {
-    console.error("Failed to load background audio", err);
-});
 
 		const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
 		this.scene.add(ambient);
