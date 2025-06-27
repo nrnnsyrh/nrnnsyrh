@@ -1,3 +1,4 @@
+// ... all your imports
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
@@ -15,7 +16,6 @@ class App {
 		document.body.appendChild(container);
 
 		this.assetsPath = './assets/';
-
 		this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 500);
 		this.camera.position.set(0, 1.6, 0);
 
@@ -25,11 +25,12 @@ class App {
 		this.dolly = new THREE.Object3D();
 		this.dolly.position.set(0, 0, 10);
 		this.dolly.add(this.camera);
+
 		this.dummyCam = new THREE.Object3D();
 		this.camera.add(this.dummyCam);
 
 		this.scene = new THREE.Scene();
-		this.scene.background = new THREE.Color('#88c0d0'); // light blue
+		this.scene.background = new THREE.Color('#88c0d0');
 		this.scene.add(this.dolly);
 
 		const ambient = new THREE.HemisphereLight(0xffffff, 0xaaaaaa, 0.8);
@@ -42,7 +43,6 @@ class App {
 		container.appendChild(this.renderer.domElement);
 
 		this.setEnvironment();
-
 		window.addEventListener('resize', this.resize.bind(this));
 
 		this.clock = new THREE.Clock();
@@ -56,25 +56,22 @@ class App {
 		container.appendChild(this.stats.dom);
 
 		this.loadingBar = new LoadingBar();
-
 		this.loadCollege();
 
 		this.immersive = false;
 
-		const self = this;
-
+		// Load info board data
 		fetch('./college.json')
 			.then(response => response.json())
 			.then(obj => {
-				self.boardShown = '';
-				self.boardData = obj;
+				this.boardShown = '';
+				this.boardData = obj;
 			});
 
-		// Background sound
+		// Background Music
 		const bgSound = new THREE.Audio(listener);
 		const audioLoader = new THREE.AudioLoader();
 		audioLoader.load('./assets/ambient.mp3', (buffer) => {
-			console.log("Background audio loaded");
 			bgSound.setBuffer(buffer);
 			bgSound.setLoop(true);
 			bgSound.setVolume(3);
@@ -83,11 +80,9 @@ class App {
 			const startAudio = () => {
 				if (!bgSound.isPlaying) {
 					bgSound.play();
-					console.log("Background music started");
 				}
 				window.removeEventListener('click', startAudio);
 			};
-
 			window.addEventListener('click', startAudio);
 		}, undefined, (err) => {
 			console.error("Failed to load background audio", err);
@@ -99,14 +94,12 @@ class App {
 		const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
 		pmremGenerator.compileEquirectangularShader();
 
-		const self = this;
-
 		loader.load('./assets/hdr/venice_sunset_1k.hdr', (texture) => {
 			const envMap = pmremGenerator.fromEquirectangular(texture).texture;
 			pmremGenerator.dispose();
-			self.scene.environment = envMap;
+			this.scene.environment = envMap;
 		}, undefined, (err) => {
-			console.error('An error occurred setting the environment');
+			console.error('Error setting environment map', err);
 		});
 	}
 
@@ -122,17 +115,15 @@ class App {
 		dracoLoader.setDecoderPath('./libs/three/js/draco/');
 		loader.setDRACOLoader(dracoLoader);
 
-		const self = this;
-
-		loader.load('college.glb', function (gltf) {
+		loader.load('college.glb', (gltf) => {
 			const college = gltf.scene.children[0];
-			self.scene.add(college);
+			this.scene.add(college);
 
-			college.traverse(function (child) {
+			college.traverse((child) => {
 				if (child.isMesh) {
 					if (child.name.indexOf("PROXY") !== -1) {
 						child.material.visible = false;
-						self.proxy = child;
+						this.proxy = child;
 					} else if (child.material.name.indexOf('Glass') !== -1) {
 						child.material.opacity = 0.1;
 						child.material.transparent = true;
@@ -145,23 +136,28 @@ class App {
 				}
 			});
 
+			// ✅ Safe lookup for door objects
 			const door1 = college.getObjectByName("LobbyShop_Door_1");
 			const door2 = college.getObjectByName("LobbyShop_Door_2");
-			const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
-			const obj = new THREE.Object3D();
-			obj.name = "LobbyShop";
-			obj.position.copy(pos);
-			college.add(obj);
 
-			self.loadingBar.visible = false;
+			if (door1 && door2) {
+				const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
+				const obj = new THREE.Object3D();
+				obj.name = "LobbyShop";
+				obj.position.copy(pos);
+				college.add(obj);
+			} else {
+				console.warn('door1 or door2 not found in college.glb');
+			}
 
-			self.setupXR();
+			this.loadingBar.visible = false;
+			this.setupXR();
 		},
-			function (xhr) {
-				self.loadingBar.progress = (xhr.loaded / xhr.total);
+			(xhr) => {
+				this.loadingBar.progress = (xhr.loaded / xhr.total);
 			},
-			function (error) {
-				console.log('An error happened loading college.glb', error);
+			(error) => {
+				console.error('Error loading college.glb', error);
 			}
 		);
 	}
@@ -170,32 +166,16 @@ class App {
 		this.renderer.xr.enabled = true;
 		new VRButton(this.renderer);
 
-		const self = this;
-		const timeoutId = setTimeout(connectionTimeout, 2000);
-
-		function onSelectStart() {
-			this.userData.selectPressed = true;
-		}
-
-		function onSelectEnd() {
-			this.userData.selectPressed = false;
-		}
-
-		function onConnected() {
-			clearTimeout(timeoutId);
-		}
-
-		function connectionTimeout() {
-			self.useGaze = true;
-			self.gazeController = new GazeController(self.scene, self.dummyCam);
-		}
+		const timeoutId = setTimeout(() => {
+			this.useGaze = true;
+			this.gazeController = new GazeController(this.scene, this.dummyCam);
+		}, 2000);
 
 		this.controllers = this.buildControllers(this.dolly);
-
 		this.controllers.forEach((controller) => {
-			controller.addEventListener('selectstart', onSelectStart);
-			controller.addEventListener('selectend', onSelectEnd);
-			controller.addEventListener('connected', onConnected);
+			controller.addEventListener('selectstart', () => controller.userData.selectPressed = true);
+			controller.addEventListener('selectend', () => controller.userData.selectPressed = false);
+			controller.addEventListener('connected', () => clearTimeout(timeoutId));
 		});
 
 		const config = {
@@ -203,7 +183,7 @@ class App {
 			height: 256,
 			name: { fontSize: 50, height: 70 },
 			info: { position: { top: 70, backgroundColor: "#ccc", fontColor: "#000" } }
-		};
+	 };
 		const content = { name: "name", info: "info" };
 		this.ui = new CanvasUI(content, config);
 		this.scene.add(this.ui.mesh);
@@ -220,7 +200,6 @@ class App {
 		line.scale.z = 0;
 
 		const controllers = [];
-
 		for (let i = 0; i <= 1; i++) {
 			const controller = this.renderer.xr.getController(i);
 			controller.add(line.clone());
@@ -232,12 +211,11 @@ class App {
 			grip.add(controllerModelFactory.createControllerModel(grip));
 			parent.add(grip);
 		}
-
 		return controllers;
 	}
 
 	moveDolly(dt) {
-		if (this.proxy === undefined) return;
+		if (!this.proxy) return;
 
 		const wallLimit = 1.3;
 		const speed = 2;
@@ -251,30 +229,24 @@ class App {
 		dir.negate();
 		this.raycaster.set(pos, dir);
 
-		let blocked = false;
 		let intersect = this.raycaster.intersectObject(this.proxy);
-		if (intersect.length > 0 && intersect[0].distance < wallLimit) blocked = true;
-
-		if (!blocked) {
+		if (!(intersect.length > 0 && intersect[0].distance < wallLimit)) {
 			this.dolly.translateZ(-dt * speed);
 			pos = this.dolly.getWorldPosition(this.origin);
 		}
 
-		// left
-		dir.set(-1, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
-		this.raycaster.set(pos, dir);
-		intersect = this.raycaster.intersectObject(this.proxy);
-		if (intersect.length > 0 && intersect[0].distance < wallLimit)
-			this.dolly.translateX(wallLimit - intersect[0].distance);
+		// wall collision (left/right)
+		[['-x', -1], ['+x', 1]].forEach(([label, axis]) => {
+			dir.set(axis, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
+			this.raycaster.set(pos, dir);
+			intersect = this.raycaster.intersectObject(this.proxy);
+			if (intersect.length > 0 && intersect[0].distance < wallLimit) {
+				const offset = axis === -1 ? wallLimit - intersect[0].distance : intersect[0].distance - wallLimit;
+				this.dolly.translateX(offset);
+			}
+		});
 
-		// right
-		dir.set(1, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
-		this.raycaster.set(pos, dir);
-		intersect = this.raycaster.intersectObject(this.proxy);
-		if (intersect.length > 0 && intersect[0].distance < wallLimit)
-			this.dolly.translateX(intersect[0].distance - wallLimit);
-
-		// down
+		// floor adjustment
 		dir.set(0, -1, 0);
 		pos.y += 1.5;
 		this.raycaster.set(pos, dir);
@@ -303,19 +275,14 @@ class App {
 		this.boardShown = name;
 	}
 
-	render(timestamp, frame) {
+	render() {
 		const dt = this.clock.getDelta();
 
 		if (this.renderer.xr.isPresenting) {
-			let moveGaze = false;
-
-			if (this.useGaze && this.gazeController) {
-				this.gazeController.update();
-				moveGaze = (this.gazeController.mode === GazeController.Modes.MOVE);
-			}
-
+			let moveGaze = this.useGaze && this.gazeController?.mode === GazeController.Modes.MOVE;
 			if (this.selectPressed || moveGaze) {
 				this.moveDolly(dt);
+
 				if (this.boardData) {
 					const dollyPos = this.dolly.getWorldPosition(new THREE.Vector3());
 					let boardFound = false;
