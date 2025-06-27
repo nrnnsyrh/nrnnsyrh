@@ -1,4 +1,4 @@
-// ... all your imports
+// [IMPORTS – same as before]
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
@@ -30,7 +30,7 @@ class App {
 		this.camera.add(this.dummyCam);
 
 		this.scene = new THREE.Scene();
-		this.scene.background = new THREE.Color('#88c0d0');
+		this.scene.background = new THREE.Color('#88c0d0'); // sky blue
 		this.scene.add(this.dolly);
 
 		const ambient = new THREE.HemisphereLight(0xffffff, 0xaaaaaa, 0.8);
@@ -46,8 +46,6 @@ class App {
 		window.addEventListener('resize', this.resize.bind(this));
 
 		this.clock = new THREE.Clock();
-		this.up = new THREE.Vector3(0, 1, 0);
-		this.origin = new THREE.Vector3();
 		this.workingVec3 = new THREE.Vector3();
 		this.workingQuaternion = new THREE.Quaternion();
 		this.raycaster = new THREE.Raycaster();
@@ -59,16 +57,9 @@ class App {
 		this.loadCollege();
 
 		this.immersive = false;
+		this.keys = {}; // for keyboard support
 
-		// Load info board data
-		fetch('./college.json')
-			.then(response => response.json())
-			.then(obj => {
-				this.boardShown = '';
-				this.boardData = obj;
-			});
-
-		// Background Music
+		// Background music
 		const bgSound = new THREE.Audio(listener);
 		const audioLoader = new THREE.AudioLoader();
 		audioLoader.load('./assets/ambient.mp3', (buffer) => {
@@ -78,28 +69,33 @@ class App {
 			this.scene.add(bgSound);
 
 			const startAudio = () => {
-				if (!bgSound.isPlaying) {
-					bgSound.play();
-				}
+				if (!bgSound.isPlaying) bgSound.play();
 				window.removeEventListener('click', startAudio);
 			};
 			window.addEventListener('click', startAudio);
-		}, undefined, (err) => {
-			console.error("Failed to load background audio", err);
 		});
+
+		// Keyboard movement support (WASD)
+		window.addEventListener('keydown', (e) => this.keys[e.key.toLowerCase()] = true);
+		window.addEventListener('keyup', (e) => this.keys[e.key.toLowerCase()] = false);
+
+		// Load info boards
+		fetch('./college.json')
+			.then(response => response.json())
+			.then(obj => {
+				this.boardData = obj;
+				this.boardShown = '';
+			});
 	}
 
 	setEnvironment() {
 		const loader = new RGBELoader().setDataType(THREE.UnsignedByteType);
 		const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
 		pmremGenerator.compileEquirectangularShader();
-
 		loader.load('./assets/hdr/venice_sunset_1k.hdr', (texture) => {
 			const envMap = pmremGenerator.fromEquirectangular(texture).texture;
 			pmremGenerator.dispose();
 			this.scene.environment = envMap;
-		}, undefined, (err) => {
-			console.error('Error setting environment map', err);
 		});
 	}
 
@@ -111,8 +107,7 @@ class App {
 
 	loadCollege() {
 		const loader = new GLTFLoader().setPath(this.assetsPath);
-		const dracoLoader = new DRACOLoader();
-		dracoLoader.setDecoderPath('./libs/three/js/draco/');
+		const dracoLoader = new DRACOLoader().setDecoderPath('./libs/three/js/draco/');
 		loader.setDRACOLoader(dracoLoader);
 
 		loader.load('college.glb', (gltf) => {
@@ -121,57 +116,46 @@ class App {
 
 			college.traverse((child) => {
 				if (child.isMesh) {
-					if (child.name.indexOf("PROXY") !== -1) {
+					if (child.name.includes("PROXY")) {
 						child.material.visible = false;
 						this.proxy = child;
-					} else if (child.material.name.indexOf('Glass') !== -1) {
+					} else if (child.material.name.includes('Glass')) {
 						child.material.opacity = 0.1;
 						child.material.transparent = true;
-					} else if (child.material.name.indexOf("SkyBox") !== -1) {
-						const mat1 = child.material;
-						const mat2 = new THREE.MeshBasicMaterial({ map: mat1.map });
-						child.material = mat2;
-						mat1.dispose();
+					} else if (child.material.name.includes('SkyBox')) {
+						const mat = new THREE.MeshBasicMaterial({ map: child.material.map });
+						child.material.dispose();
+						child.material = mat;
 					}
 				}
 			});
 
-			// ✅ Safe lookup for door objects
 			const door1 = college.getObjectByName("LobbyShop_Door_1");
 			const door2 = college.getObjectByName("LobbyShop_Door_2");
-
 			if (door1 && door2) {
 				const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
 				const obj = new THREE.Object3D();
 				obj.name = "LobbyShop";
 				obj.position.copy(pos);
 				college.add(obj);
-			} else {
-				console.warn('door1 or door2 not found in college.glb');
 			}
 
 			this.loadingBar.visible = false;
 			this.setupXR();
-		},
-			(xhr) => {
-				this.loadingBar.progress = (xhr.loaded / xhr.total);
-			},
-			(error) => {
-				console.error('Error loading college.glb', error);
-			}
-		);
+		});
 	}
 
 	setupXR() {
 		this.renderer.xr.enabled = true;
-		new VRButton(this.renderer);
+		document.body.appendChild(VRButton.createButton(this.renderer));
+
+		this.controllers = this.buildControllers(this.dolly);
 
 		const timeoutId = setTimeout(() => {
 			this.useGaze = true;
 			this.gazeController = new GazeController(this.scene, this.dummyCam);
 		}, 2000);
 
-		this.controllers = this.buildControllers(this.dolly);
 		this.controllers.forEach((controller) => {
 			controller.addEventListener('selectstart', () => controller.userData.selectPressed = true);
 			controller.addEventListener('selectend', () => controller.userData.selectPressed = false);
@@ -183,7 +167,7 @@ class App {
 			height: 256,
 			name: { fontSize: 50, height: 70 },
 			info: { position: { top: 70, backgroundColor: "#ccc", fontColor: "#000" } }
-	 };
+		};
 		const content = { name: "name", info: "info" };
 		this.ui = new CanvasUI(content, config);
 		this.scene.add(this.ui.mesh);
@@ -191,13 +175,10 @@ class App {
 		this.renderer.setAnimationLoop(this.render.bind(this));
 	}
 
-	buildControllers(parent = this.scene) {
-		const controllerModelFactory = new XRControllerModelFactory();
-		const geometry = new THREE.BufferGeometry().setFromPoints([
-			new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)
-		]);
+	buildControllers(parent) {
+		const factory = new XRControllerModelFactory();
+		const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
 		const line = new THREE.Line(geometry);
-		line.scale.z = 0;
 
 		const controllers = [];
 		for (let i = 0; i <= 1; i++) {
@@ -208,7 +189,7 @@ class App {
 			controllers.push(controller);
 
 			const grip = this.renderer.xr.getControllerGrip(i);
-			grip.add(controllerModelFactory.createControllerModel(grip));
+			grip.add(factory.createControllerModel(grip));
 			parent.add(grip);
 		}
 		return controllers;
@@ -217,100 +198,77 @@ class App {
 	moveDolly(dt) {
 		if (!this.proxy) return;
 
-		const wallLimit = 1.3;
 		const speed = 2;
 		let pos = this.dolly.position.clone();
 		pos.y += 1;
 
-		let dir = new THREE.Vector3();
 		const quaternion = this.dolly.quaternion.clone();
 		this.dolly.quaternion.copy(this.dummyCam.getWorldQuaternion(this.workingQuaternion));
-		this.dolly.getWorldDirection(dir);
-		dir.negate();
+
+		const dir = new THREE.Vector3();
+		this.dolly.getWorldDirection(dir).negate();
 		this.raycaster.set(pos, dir);
 
+		let blocked = false;
 		let intersect = this.raycaster.intersectObject(this.proxy);
-		if (!(intersect.length > 0 && intersect[0].distance < wallLimit)) {
+		if (intersect.length > 0 && intersect[0].distance < 1.3) blocked = true;
+
+		if (!blocked) {
 			this.dolly.translateZ(-dt * speed);
-			pos = this.dolly.getWorldPosition(this.origin);
-		}
-
-		// wall collision (left/right)
-		[['-x', -1], ['+x', 1]].forEach(([label, axis]) => {
-			dir.set(axis, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
-			this.raycaster.set(pos, dir);
-			intersect = this.raycaster.intersectObject(this.proxy);
-			if (intersect.length > 0 && intersect[0].distance < wallLimit) {
-				const offset = axis === -1 ? wallLimit - intersect[0].distance : intersect[0].distance - wallLimit;
-				this.dolly.translateX(offset);
-			}
-		});
-
-		// floor adjustment
-		dir.set(0, -1, 0);
-		pos.y += 1.5;
-		this.raycaster.set(pos, dir);
-		intersect = this.raycaster.intersectObject(this.proxy);
-		if (intersect.length > 0) {
-			this.dolly.position.copy(intersect[0].point);
+			pos = this.dolly.getWorldPosition(new THREE.Vector3());
 		}
 
 		this.dolly.quaternion.copy(quaternion);
 	}
 
-	get selectPressed() {
-		return this.controllers &&
-			(this.controllers[0].userData.selectPressed || this.controllers[1].userData.selectPressed);
+	render() {
+		const dt = this.clock.getDelta();
+
+		// ✅ Movement in VR
+		const isInVR = this.renderer.xr.isPresenting;
+		const usingGaze = this.useGaze && this.gazeController?.mode === GazeController.Modes.MOVE;
+		const selectPressed = this.controllers?.some(c => c.userData.selectPressed);
+
+		if ((isInVR && (selectPressed || usingGaze)) || (!isInVR && (this.keys['w'] || this.keys['arrowup']))) {
+			this.moveDolly(dt);
+		}
+
+		// Info board logic
+		if (this.boardData) {
+			const dollyPos = this.dolly.getWorldPosition(new THREE.Vector3());
+			let boardFound = false;
+			for (const [name, info] of Object.entries(this.boardData)) {
+				const obj = this.scene.getObjectByName(name);
+				if (obj && dollyPos.distanceTo(obj.position) < 3) {
+					if (this.boardShown !== name) this.showInfoboard(name, info, obj.position);
+					boardFound = true;
+					break;
+				}
+			}
+			if (!boardFound) {
+				this.boardShown = '';
+				this.ui.visible = false;
+			}
+		}
+
+		if (this.immersive !== isInVR) {
+			this.resize();
+			this.immersive = isInVR;
+		}
+
+		this.stats.update();
+		this.renderer.render(this.scene, this.camera);
 	}
 
 	showInfoboard(name, info, pos) {
-		if (!this.ui) return;
-		this.ui.position.copy(pos).add(this.workingVec3.set(0, 1.3, 0));
-		const camPos = this.dummyCam.getWorldPosition(this.workingVec3);
+		this.ui.position.copy(pos).add(new THREE.Vector3(0, 1.3, 0));
+		const camPos = this.dummyCam.getWorldPosition(new THREE.Vector3());
 		this.ui.updateElement('name', info.name);
 		this.ui.updateElement('info', info.info);
 		this.ui.update();
 		this.ui.lookAt(camPos);
 		this.ui.visible = true;
 		this.boardShown = name;
-	}
-
-	render() {
-		const dt = this.clock.getDelta();
-
-		if (this.renderer.xr.isPresenting) {
-			let moveGaze = this.useGaze && this.gazeController?.mode === GazeController.Modes.MOVE;
-			if (this.selectPressed || moveGaze) {
-				this.moveDolly(dt);
-
-				if (this.boardData) {
-					const dollyPos = this.dolly.getWorldPosition(new THREE.Vector3());
-					let boardFound = false;
-					Object.entries(this.boardData).forEach(([name, info]) => {
-						const obj = this.scene.getObjectByName(name);
-						if (obj) {
-							const pos = obj.getWorldPosition(new THREE.Vector3());
-							if (dollyPos.distanceTo(pos) < 3) {
-								boardFound = true;
-								if (this.boardShown !== name) this.showInfoboard(name, info, pos);
-							}
-						}
-					});
-					if (!boardFound) {
-						this.boardShown = "";
-						this.ui.visible = false;
-					}
-				}
-			}
-		}
-
-		if (this.immersive !== this.renderer.xr.isPresenting) {
-			this.resize();
-			this.immersive = this.renderer.xr.isPresenting;
-		}
-
-		this.stats.update();
-		this.renderer.render(this.scene, this.camera);
 	}
 }
 
