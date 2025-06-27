@@ -70,14 +70,6 @@ class App{
             self.boardData = obj;
         });
 
-    // 2. Create clickable box
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ color: 0x4CC3D9 });
-    const interactiveBox = new THREE.Mesh(geometry, material);
-    interactiveBox.position.set(0, 3, 10);
-    interactiveBox.name = "InteractiveBox";
-    this.scene.add(interactiveBox);
-
    // 3. Play background music (non-positional, global sound)
 const bgSound = new THREE.Audio(listener);
 const audioLoader = new THREE.AudioLoader();
@@ -102,19 +94,7 @@ audioLoader.load('./assets/ambient.mp3', (buffer) => {
 }, undefined, (err) => {
     console.error("Failed to load background audio", err);
 });
-    // Box click interaction (raycasting)
-    window.addEventListener('click', (event) => {
-        const mouse = new THREE.Vector2(
-            (event.clientX / window.innerWidth) * 2 - 1,
-            -(event.clientY / window.innerHeight) * 2 + 1
-        );
-        this.raycaster.setFromCamera(mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects([interactiveBox]);
-        if (intersects.length > 0) {
-            const newColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
-            interactiveBox.material.color.set(newColor);
-        }
-    });
+   
 }
 	
     setEnvironment(){
